@@ -1,0 +1,27 @@
+{
+  "name": "expense-tracker",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"No test specified\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jrivas201918/expense-tracker.git"
+  },
+  "author": "Joshua Rivas <joshuarivas19990820@gmail.com> (https://github.com/jrivas201918)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jrivas201918/expense-tracker/issues"
+  },
+  "homepage": "https://github.com/jrivas201918/expense-tracker#readme",
+  "description": "A simple expense tracker application to manage daily expenses with an intuitive UI and functionality.",
+  "keywords": [
+    "expense tracker",
+    "budgeting",
+    "finance",
+    "javascript",
+    "web app"
+  ]
+}
