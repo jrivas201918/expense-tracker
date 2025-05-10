@@ -1,58 +1,16 @@
 [
   {
     "id": 1,
-    "amount": 40.0,
+    "amount": 2500.0,
     "category": "Food",
-    "description": "Bigas",
-    "date": "2025-05-10"
-  },
-  {
-    "id": 2,
-    "amount": 15.0,
-    "category": "Food",
-    "description": "Tender Juicy Hotdog",
+    "description": "Grocery",
     "date": "2025-05-10"
   },
   {
     "id": 3,
-    "amount": 400.0,
-    "category": "Other",
-    "description": "Gift",
+    "amount": 120.0,
+    "category": "Transportation",
+    "description": "Bus",
     "date": "2025-05-10"
-  },
-  {
-    "id": 4,
-    "amount": 1299.0,
-    "category": "Utilities",
-    "description": "Internet",
-    "date": "2025-05-15"
-  },
-  {
-    "id": 5,
-    "amount": 3000.0,
-    "category": "Utilities",
-    "description": "Meralco Bill",
-    "date": "2025-06-05"
-  },
-  {
-    "id": 6,
-    "amount": 600.0,
-    "category": "Food",
-    "description": "Pagkain",
-    "date": "2025-05-11"
-  },
-  {
-    "id": 7,
-    "amount": 600.0,
-    "category": "Food",
-    "description": "Pagkain",
-    "date": "2025-05-12"
-  },
-  {
-    "id": 8,
-    "amount": 600.0,
-    "category": "Utilities",
-    "description": "Pagkain",
-    "date": "2025-05-13"
   }
 ]

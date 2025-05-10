@@ -10,9 +10,7 @@ import calendar
 import csv
 import sv_ttk  # Sunvalley ttk theme for modern UI
 import numpy as np  # Import numpy for numerical operations
-import random  # Import random for generating random numbers
 from tkcalendar import DateEntry
-
 
 class ExpenseTrackerApp:
     def __init__(self, root):
@@ -21,15 +19,13 @@ class ExpenseTrackerApp:
         self.root.geometry("1000x700")
         self.root.minsize(900, 600)
         
-        # Define configuration file for settings
-        self.config_file = "expense_tracker_config.json"
-        self.config = self.load_config()
+        self.config = {}
         
         # Apply saved theme or default to dark
         self.current_theme = self.config.get("theme", "dark")
         sv_ttk.set_theme(self.current_theme)
         
-        # Configure colors for both themes
+        # Configure colors
         self.colors = {
             "dark": {
                 "bg": "#303030",
@@ -37,7 +33,8 @@ class ExpenseTrackerApp:
                 "text": "#ffffff",
                 "success": "#81c995",
                 "warning": "#fdd663",
-                "error": "#f28b82"
+                "error": "#f28b82",
+                "card_bg": "#424242"
             },
             "light": {
                 "bg": "#f5f5f5",
@@ -45,7 +42,8 @@ class ExpenseTrackerApp:
                 "text": "#202124",
                 "success": "#0f9d58",
                 "warning": "#f29900",
-                "error": "#d93025"
+                "error": "#d93025",
+                "card_bg": "#ffffff"
             }
         }
         
@@ -53,6 +51,9 @@ class ExpenseTrackerApp:
         self.expenses = []
         self.filename = "expenses.json"
         self.load_data()
+        
+        # Define preset categories
+        self.preset_categories = ["Food", "Utilities", "Transportation", "Healthcare", "Entertainment", "Savings", "Other"]
         
         # Create fonts
         self.heading_font = ("Segoe UI", 16, "bold")
@@ -67,19 +68,16 @@ class ExpenseTrackerApp:
         header_frame = ttk.Frame(main_container)
         header_frame.pack(fill=tk.X, pady=(0, 15))
         
-        # Create a simple logo
+         # Create a simple logo
         self.logo_canvas = tk.Canvas(header_frame, width=40, height=40, 
                                highlightthickness=0)
         self.logo_canvas.pack(side=tk.LEFT, padx=(0, 10))
-        
-        # Update the logo with current theme colors
-        self.update_logo()
         
         # App title
         title_label = ttk.Label(header_frame, text="Expense Tracker", 
                              font=("Segoe UI", 20, "bold"))
         title_label.pack(side=tk.LEFT)
-        
+
         # Theme toggle button
         self.theme_icon_var = tk.StringVar(value="🌙" if self.current_theme == "light" else "☀️")
         theme_btn = ttk.Button(header_frame, textvariable=self.theme_icon_var,
@@ -87,6 +85,8 @@ class ExpenseTrackerApp:
         theme_btn.pack(side=tk.RIGHT)
         
         # Set up the main frame with a notebook (tabs)
+        self.style = ttk.Style()
+        self.style.configure("TNotebook.Tab", font=('Segoe UI', 11))
         self.notebook = ttk.Notebook(main_container)
         self.notebook.pack(fill=tk.BOTH, expand=True)
         
@@ -106,7 +106,7 @@ class ExpenseTrackerApp:
         self.status_var.set(f"Loaded {len(self.expenses)} expenses")
         
         # Version info
-        version_label = ttk.Label(status_frame, text="v2.1", anchor=tk.E)
+        version_label = ttk.Label(status_frame, text="v2.5", anchor=tk.E)
         version_label.pack(side=tk.RIGHT)
 
     def toggle_theme(self):
@@ -114,20 +114,20 @@ class ExpenseTrackerApp:
         # Switch theme
         self.current_theme = "light" if self.current_theme == "dark" else "dark"
         sv_ttk.set_theme(self.current_theme)
-        
+            
         # Update theme icon
         self.theme_icon_var.set("🌙" if self.current_theme == "light" else "☀️")
-        
+            
         # Update logo with new theme colors
         self.update_logo()
-        
+            
         # Save theme preference
         self.config["theme"] = self.current_theme
         self.save_config()
-        
+            
         # Update charts if they exist
         self.refresh_reports()
-        
+            
         # Update status
         self.status_var.set(f"Theme changed to {self.current_theme}")
 
@@ -146,25 +146,6 @@ class ExpenseTrackerApp:
         self.logo_canvas.create_oval(5, 5, 35, 35, fill=current_colors["accent"], outline="")
         self.logo_canvas.create_text(20, 20, text="₱", fill=bg_color, 
                                 font=("Arial", 20, "bold"))
-
-    def load_config(self):
-        """Load application configuration"""
-        if os.path.exists(self.config_file):
-            try:
-                with open(self.config_file, "r") as f:
-                    return json.load(f)
-            except:
-                return {"theme": "dark"}
-        else:
-            return {"theme": "dark"}
-
-    def save_config(self):
-        """Save application configuration"""
-        try:
-            with open(self.config_file, "w") as f:
-                json.dump(self.config, f, indent=2)
-        except Exception as e:
-            messagebox.showerror("Error", f"Error saving configuration: {str(e)}")
 
     def setup_dashboard_tab(self):
         dashboard_frame = ttk.Frame(self.notebook, padding=15)
@@ -191,9 +172,9 @@ class ExpenseTrackerApp:
         self.quick_amount_entry = ttk.Entry(amount_frame, font=self.normal_font, width=15)
         self.quick_amount_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        # Category with dropdown
+        # Category with dropdown - using preset categories
         ttk.Label(quick_add_frame, text="Category", font=self.normal_font).pack(anchor=tk.W, pady=(10, 5))
-        self.quick_category_entry = ttk.Combobox(quick_add_frame, values=self.get_categories(), 
+        self.quick_category_entry = ttk.Combobox(quick_add_frame, values=self.preset_categories, 
                                             font=self.normal_font)
         self.quick_category_entry.pack(fill=tk.X)
         
@@ -204,18 +185,22 @@ class ExpenseTrackerApp:
         
         # Date with default today
         ttk.Label(quick_add_frame, text="Date", font=self.normal_font).pack(anchor=tk.W, pady=(10, 5))
-        self.quick_date_entry = DateEntry(quick_add_frame, font=self.normal_font)
+        self.quick_date_entry = ttk.Entry(quick_add_frame, font=self.normal_font)
         self.quick_date_entry.pack(fill=tk.X)
+        DateEntry(self.quick_date_entry, width=12, background='darkblue',       
+                  foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd').pack(fill=tk.X) 
         self.quick_date_entry.insert(0, datetime.datetime.now().strftime("%Y-%m-%d"))
         
         # Submit button with modern style
         submit_frame = ttk.Frame(quick_add_frame)
         submit_frame.pack(fill=tk.X, pady=(15, 0))
         
+        # Style the button
+        self.style.configure("Accent.TButton", font=("Segoe UI", 10, "bold"))
         ttk.Button(submit_frame, text="Add Expense", command=self.quick_add_expense, 
                style="Accent.TButton").pack(side=tk.RIGHT)
         
-        # Recent transactions in both columns at bottom
+        # Recent transactions
         ttk.Label(dashboard_frame, text="Recent Transactions", 
               font=self.subheading_font).pack(anchor=tk.W, pady=(20, 10))
         
@@ -226,6 +211,10 @@ class ExpenseTrackerApp:
         columns = ("date", "amount", "category", "description")
         self.recent_tree = ttk.Treeview(recent_frame, columns=columns, show="headings", height=6)
         self.recent_tree.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        
+        # Configure treeview style for modern look
+        self.style.configure("Treeview", font=self.normal_font, rowheight=25)
+        self.style.configure("Treeview.Heading", font=self.normal_font)
         
         # Add scrollbar
         scrollbar = ttk.Scrollbar(recent_frame, orient=tk.VERTICAL, command=self.recent_tree.yview)
@@ -257,8 +246,11 @@ class ExpenseTrackerApp:
         cards_frame.rowconfigure(0, weight=1)
         cards_frame.rowconfigure(1, weight=1)
         
+        # Card style
+        self.style.configure("Card.TFrame", background=self.colors[self.current_theme]["card_bg"])
+        
         # Total expenses card
-        total_card = ttk.Frame(cards_frame, padding=15, relief="raised")
+        total_card = ttk.Frame(cards_frame, padding=15, style="Card.TFrame")
         total_card.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
         
         ttk.Label(total_card, text="TOTAL EXPENSES", font=self.normal_font).pack(anchor=tk.W)
@@ -267,7 +259,7 @@ class ExpenseTrackerApp:
               font=("Segoe UI", 22, "bold")).pack(anchor=tk.W, pady=10)
         
         # Monthly expenses card
-        monthly_card = ttk.Frame(cards_frame, padding=15, relief="raised")
+        monthly_card = ttk.Frame(cards_frame, padding=15, style="Card.TFrame")
         monthly_card.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
         
         ttk.Label(monthly_card, text="THIS MONTH", font=self.normal_font).pack(anchor=tk.W)
@@ -276,7 +268,7 @@ class ExpenseTrackerApp:
               font=("Segoe UI", 22, "bold")).pack(anchor=tk.W, pady=10)
         
         # Average expense card
-        avg_card = ttk.Frame(cards_frame, padding=15, relief="raised")
+        avg_card = ttk.Frame(cards_frame, padding=15, style="Card.TFrame")
         avg_card.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         
         ttk.Label(avg_card, text="AVERAGE EXPENSE", font=self.normal_font).pack(anchor=tk.W)
@@ -285,7 +277,7 @@ class ExpenseTrackerApp:
               font=("Segoe UI", 22, "bold")).pack(anchor=tk.W, pady=10)
         
         # Categories card
-        categories_card = ttk.Frame(cards_frame, padding=15, relief="raised")
+        categories_card = ttk.Frame(cards_frame, padding=15, style="Card.TFrame")
         categories_card.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
         
         ttk.Label(categories_card, text="CATEGORIES", font=self.normal_font).pack(anchor=tk.W)
@@ -314,6 +306,17 @@ class ExpenseTrackerApp:
                                            if self.search_entry.get() == "Search expenses..." else None)
         self.search_entry.bind("<FocusOut>", lambda e: self.search_entry.insert(0, "Search expenses...") 
                                             if self.search_entry.get() == "" else None)
+        
+        # Category filter dropdown
+        filter_container = ttk.Frame(actions_frame)
+        filter_container.pack(side=tk.LEFT, padx=20)
+        
+        ttk.Label(filter_container, text="Filter by:").pack(side=tk.LEFT, padx=(0, 5))
+        self.category_filter = ttk.Combobox(filter_container, width=15, font=self.normal_font, 
+                                        values=["All Categories"] + self.preset_categories)
+        self.category_filter.pack(side=tk.LEFT)
+        self.category_filter.current(0)  # Default to "All Categories"
+        self.category_filter.bind("<<ComboboxSelected>>", self.filter_expenses)
         
         # Action buttons
         ttk.Button(actions_frame, text="+ Add New", command=self.show_add_expense_dialog, 
@@ -360,6 +363,39 @@ class ExpenseTrackerApp:
         
         # Load expenses into the tree
         self.load_expenses()
+
+    def filter_expenses(self, event=None):
+        """Filter expenses by selected category"""
+        selected_category = self.category_filter.get()
+        search_text = self.search_entry.get().lower()
+        if search_text == "search expenses...":
+            search_text = ""
+            
+        # Clear the existing items
+        for item in self.expense_tree.get_children():
+            self.expense_tree.delete(item)
+            
+        # Add matching expenses to the tree
+        for expense in sorted(self.expenses, key=lambda x: x["date"], reverse=True):
+            # Check if expense matches the category filter (if selected)
+            category_match = (selected_category == "All Categories" or expense["category"] == selected_category)
+            
+            # Check if expense matches the search text
+            search_match = (not search_text or
+                      search_text in str(expense["amount"]).lower() or
+                      search_text in expense["category"].lower() or
+                      search_text in expense["description"].lower() or
+                      search_text in expense["date"].lower())
+            
+            # Add expense to tree if both category and search criteria match
+            if category_match and search_match:
+                self.expense_tree.insert("", tk.END, values=(
+                    expense["id"],
+                    expense["date"],
+                    f"₱{expense['amount']:.2f}",
+                    expense["category"],
+                    expense["description"]
+                ))
 
     def setup_context_menu(self):
         """Setup right-click context menu for expense tree"""
@@ -464,9 +500,9 @@ class ExpenseTrackerApp:
         amount_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         amount_entry.focus_set()  # Set focus to amount field
         
-        # Category dropdown
+        # Category dropdown using preset categories
         ttk.Label(content_frame, text="Category", font=self.normal_font).pack(anchor=tk.W, pady=(10, 5))
-        category_entry = ttk.Combobox(content_frame, values=self.get_categories(), font=self.normal_font)
+        category_entry = ttk.Combobox(content_frame, values=self.preset_categories, font=self.normal_font)
         category_entry.pack(fill=tk.X)
         
         # Description
@@ -619,18 +655,18 @@ class ExpenseTrackerApp:
             except ValueError:
                 messagebox.showerror("Error", "Invalid date format. Use YYYY-MM-DD")
                 return
-                
+            # Add the expense
             self.add_expense_data(amount, category, description, date_str)
             
-            # Clear fields
+            # Reset form fields
             self.quick_amount_entry.delete(0, tk.END)
             self.quick_desc_entry.delete(0, tk.END)
             self.quick_date_entry.delete(0, tk.END)
             self.quick_date_entry.insert(0, datetime.datetime.now().strftime("%Y-%m-%d"))
             
             # Update UI
-            self.update_dashboard()
             self.load_expenses()
+            self.update_dashboard()
             self.refresh_reports()
             
             self.status_var.set(f"Expense added: ₱{amount:.2f} for {description}")
@@ -638,42 +674,214 @@ class ExpenseTrackerApp:
         except ValueError:
             messagebox.showerror("Error", "Please enter a valid amount")
 
-    def add_expense_data(self, amount, category, description, date=None):
-        """Add expense to the data model"""
-        if date is None:
-            date = datetime.datetime.now().strftime("%Y-%m-%d")
+    def edit_expense(self):
+        """Edit the selected expense"""
+        selected_item = self.expense_tree.selection()
+        if not selected_item:
+            messagebox.showinfo("Info", "Please select an expense to edit")
+            return
+            
+        # Get the selected expense ID
+        expense_id = int(self.expense_tree.item(selected_item[0], "values")[0])
+        
+        # Find the expense
+        selected_expense = None
+        for expense in self.expenses:
+            if expense["id"] == expense_id:
+                selected_expense = expense
+                break
+                
+        if not selected_expense:
+            return
+        
+        # Create edit dialog
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Edit Expense")
+        dialog.geometry("400x300")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Add padding around the dialog content
+        content_frame = ttk.Frame(dialog, padding=20)
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        ttk.Label(content_frame, text="Edit Expense", 
+              font=self.heading_font).pack(anchor=tk.W, pady=(0, 15))
+        
+        # Form fields
+        # Amount field with ₱ prefix
+        amount_frame = ttk.Frame(content_frame)
+        amount_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(amount_frame, text="₱", font=self.normal_font).pack(side=tk.LEFT)
+        amount_entry = ttk.Entry(amount_frame, font=self.normal_font)
+        amount_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        amount_entry.insert(0, str(selected_expense["amount"]))
+        
+        # Category dropdown
+        ttk.Label(content_frame, text="Category", font=self.normal_font).pack(anchor=tk.W, pady=(10, 5))
+        category_entry = ttk.Combobox(content_frame, values=self.preset_categories, font=self.normal_font)
+        category_entry.pack(fill=tk.X)
+        category_entry.set(selected_expense["category"])
+        
+        # Description
+        ttk.Label(content_frame, text="Description", font=self.normal_font).pack(anchor=tk.W, pady=(10, 5))
+        desc_entry = ttk.Entry(content_frame, font=self.normal_font)
+        desc_entry.pack(fill=tk.X)
+        desc_entry.insert(0, selected_expense["description"])
+        
+        # Date
+        ttk.Label(content_frame, text="Date", font=self.normal_font).pack(anchor=tk.W, pady=(10, 5))
+        date_entry = ttk.Entry(content_frame, font=self.normal_font)
+        date_entry.pack(fill=tk.X)
+        date_entry.insert(0, selected_expense["date"])
+        
+        # Button frame
+        button_frame = ttk.Frame(content_frame)
+        button_frame.pack(fill=tk.X, pady=(20, 0))
+        
+        def save_edited_expense():
+            try:
+                amount = float(amount_entry.get())
+                category = category_entry.get()
+                description = desc_entry.get()
+                date_str = date_entry.get()
+                
+                # Validate input
+                if amount <= 0:
+                    messagebox.showerror("Error", "Amount must be positive")
+                    return
+                    
+                if not category:
+                    messagebox.showerror("Error", "Category is required")
+                    return
+                    
+                try:
+                    # Validate date format
+                    datetime.datetime.strptime(date_str, "%Y-%m-%d")
+                except ValueError:
+                    messagebox.showerror("Error", "Invalid date format. Use YYYY-MM-DD")
+                    return
+                
+                # Update expense
+                selected_expense["amount"] = amount
+                selected_expense["category"] = category
+                selected_expense["description"] = description
+                selected_expense["date"] = date_str
+                
+                # Save changes
+                self.save_data()
+                
+                # Update UI
+                self.load_expenses()
+                self.update_dashboard()
+                self.refresh_reports()
+                
+                self.status_var.set(f"Expense updated: ₱{amount:.2f} for {description}")
+                dialog.destroy()
+                
+            except ValueError:
+                messagebox.showerror("Error", "Please enter a valid amount")
+        
+        ttk.Button(button_frame, text="Cancel", 
+               command=dialog.destroy).pack(side=tk.LEFT)
+        ttk.Button(button_frame, text="Save", 
+               command=save_edited_expense, style="Accent.TButton").pack(side=tk.RIGHT)
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        width = dialog.winfo_width()
+        height = dialog.winfo_height()
+        x = (dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (dialog.winfo_screenheight() // 2) - (height // 2)
+        dialog.geometry(f'{width}x{height}+{x}+{y}')
+
+    def delete_expense(self):
+        """Delete the selected expense"""
+        selected_item = self.expense_tree.selection()
+        if not selected_item:
+            messagebox.showinfo("Info", "Please select an expense to delete")
+            return
+        
+        # Get selected expense ID
+        expense_id = int(self.expense_tree.item(selected_item[0], "values")[0])
+        
+        # Confirm deletion
+        confirm = messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this expense?")
+        if not confirm:
+            return
+            
+        # Find and remove the expense
+        for i, expense in enumerate(self.expenses):
+            if expense["id"] == expense_id:
+                description = expense["description"]
+                amount = expense["amount"]
+                self.expenses.pop(i)
+                break
+                
+        # Save changes
+        self.save_data()
+        
+        # Update UI
+        self.load_expenses()
+        self.update_dashboard()
+        self.refresh_reports()
+        
+        self.status_var.set(f"Expense deleted: ₱{amount:.2f} for {description}")
+
+    def search_expenses(self, event=None):
+        """Search expenses by text input"""
+        self.filter_expenses()
+
+    def add_expense_data(self, amount, category, description, date_str):
+        """Add a new expense to the data"""
+        # Generate new ID
+        new_id = 1
+        if self.expenses:
+            new_id = max(expense["id"] for expense in self.expenses) + 1
             
         # Create expense object
         expense = {
-            "id": self.get_next_id(),
-            "amount": float(amount),
+            "id": new_id,
+            "amount": amount,
             "category": category,
             "description": description,
-            "date": date
+            "date": date_str
         }
         
+        # Add to expenses list
         self.expenses.append(expense)
-        self.save_data()
         
-        # Update category combobox values
-        categories = self.get_categories()
-        if hasattr(self, 'category_entry'):
-            self.category_entry.config(values=categories)
-        self.quick_category_entry.config(values=categories)
+        # Save to file
+        self.save_data()
 
-    def get_next_id(self):
-        """Get the next available ID for a new expense"""
-        if not self.expenses:
-            return 1
-        return max(expense["id"] for expense in self.expenses) + 1
+    def load_data(self):
+        """Load expense data from file"""
+        try:
+            if os.path.exists(self.filename):
+                with open(self.filename, "r") as file:
+                    self.expenses = json.load(file)
+            else:
+                self.expenses = []
+        except (json.JSONDecodeError, IOError):
+            messagebox.showerror("Error", "Failed to load expense data")
+            self.expenses = []
+
+    def save_data(self):
+        """Save expense data to file"""
+        try:
+            with open(self.filename, "w") as file:
+                json.dump(self.expenses, file, indent=2)
+        except IOError:
+            messagebox.showerror("Error", "Failed to save expense data")
 
     def load_expenses(self):
-        """Load expenses into the treeview"""
-        # Clear the existing items
+        """Load expenses into the expense tree"""
+        # Clear existing items
         for item in self.expense_tree.get_children():
             self.expense_tree.delete(item)
             
-        # Add all expenses to the tree
+        # Load expenses sorted by date (newest first)
         for expense in sorted(self.expenses, key=lambda x: x["date"], reverse=True):
             self.expense_tree.insert("", tk.END, values=(
                 expense["id"],
@@ -682,17 +890,45 @@ class ExpenseTrackerApp:
                 expense["category"],
                 expense["description"]
             ))
-            
-        # Update recent expenses in dashboard
-        self.update_recent_expenses()
+        
+        # Update category filter
+        categories = set(expense["category"] for expense in self.expenses)
+        self.category_filter["values"] = ["All Categories"] + sorted(list(categories))
 
-    def update_recent_expenses(self):
-        """Update the recent expenses display in dashboard"""
+    def update_dashboard(self):
+        """Update dashboard UI elements"""
+        # Calculate stats
+        total_expenses = sum(expense["amount"] for expense in self.expenses)
+        
+        # Monthly expenses
+        current_month = datetime.datetime.now().strftime("%Y-%m")
+        monthly_expenses = sum(expense["amount"] for expense in self.expenses 
+                          if expense["date"].startswith(current_month))
+        
+        # Average expense
+        avg_expense = 0
+        if self.expenses:
+            avg_expense = total_expenses / len(self.expenses)
+        
+        # Categories count
+        categories = set(expense["category"] for expense in self.expenses)
+        
+        # Update UI
+        self.total_expenses_var.set(f"₱{total_expenses:.2f}")
+        self.month_expenses_var.set(f"₱{monthly_expenses:.2f}")
+        self.avg_expense_var.set(f"₱{avg_expense:.2f}")
+        self.category_count_var.set(f"{len(categories)}")
+        
+        # Update recent transactions
+        self.update_recent_transactions()
+
+    def update_recent_transactions(self):
+        """Update recent transactions in dashboard"""
         # Clear existing items
         for item in self.recent_tree.get_children():
             self.recent_tree.delete(item)
             
-        # Sort expenses by date (newest first) and take the top 5
+        # Add 5 most recent transactions
         recent = sorted(self.expenses, key=lambda x: x["date"], reverse=True)[:5]
         
         for expense in recent:
@@ -703,241 +939,15 @@ class ExpenseTrackerApp:
                 expense["description"]
             ))
 
-    def update_dashboard(self):
-        """Update the dashboard statistics"""
-        # Calculate total expenses
-        total = sum(expense["amount"] for expense in self.expenses)
-        self.total_expenses_var.set(f"₱{total:.2f}")
-        
-        # Calculate monthly expenses (current month)
-        today = datetime.datetime.now()
-        current_month = today.strftime("%Y-%m")
-        monthly_expenses = sum(expense["amount"] for expense in self.expenses 
-                            if expense["date"].startswith(current_month))
-        self.month_expenses_var.set(f"₱{monthly_expenses:.2f}")
-        
-        # Calculate average expense
-        if self.expenses:
-            avg_expense = total / len(self.expenses)
-            self.avg_expense_var.set(f"₱{avg_expense:.2f}")
-        else:
-            self.avg_expense_var.set("₱0.00")
-            
-        # Count categories
-        categories = len(self.get_categories())
-        self.category_count_var.set(f"{categories}")
-
-    def edit_expense(self):
-        """Edit the selected expense"""
-        selected_item = self.expense_tree.selection()
-        if not selected_item:
-            messagebox.showinfo("Info", "Please select an expense to edit")
-            return
-            
-        # Get the ID of the selected expense
-        expense_id = int(self.expense_tree.item(selected_item[0], "values")[0])
-        
-        # Find the expense
-        for index, expense in enumerate(self.expenses):
-            if expense["id"] == expense_id:
-                # Create edit dialog
-                dialog = tk.Toplevel(self.root)
-                dialog.title("Edit Expense")
-                dialog.geometry("400x300")
-                dialog.transient(self.root)
-                dialog.grab_set()
-                
-                # Add padding around the dialog content
-                content_frame = ttk.Frame(dialog, padding=20)
-                content_frame.pack(fill=tk.BOTH, expand=True)
-                
-                # Title
-                ttk.Label(content_frame, text="Edit Expense", 
-                      font=self.heading_font).pack(anchor=tk.W, pady=(0, 15))
-                
-                # Form fields
-                # Amount field with ₱ prefix
-                amount_frame = ttk.Frame(content_frame)
-                amount_frame.pack(fill=tk.X, pady=5)
-                ttk.Label(amount_frame, text="₱", font=self.normal_font).pack(side=tk.LEFT)
-                amount_entry = ttk.Entry(amount_frame, font=self.normal_font)
-                amount_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-                amount_entry.insert(0, str(expense["amount"]))
-                
-                # Category dropdown
-                ttk.Label(content_frame, text="Category", font=self.normal_font).pack(anchor=tk.W, pady=(10, 5))
-                category_entry = ttk.Combobox(content_frame, values=self.get_categories(), font=self.normal_font)
-                category_entry.pack(fill=tk.X)
-                category_entry.insert(0, expense["category"])
-                
-                # Description
-                ttk.Label(content_frame, text="Description", font=self.normal_font).pack(anchor=tk.W, pady=(10, 5))
-                desc_entry = ttk.Entry(content_frame, font=self.normal_font)
-                desc_entry.pack(fill=tk.X)
-                desc_entry.insert(0, expense["description"])
-                
-                # Date
-                ttk.Label(content_frame, text="Date", font=self.normal_font).pack(anchor=tk.W, pady=(10, 5))
-                date_entry = ttk.Entry(content_frame, font=self.normal_font)
-                date_entry.pack(fill=tk.X)
-                date_entry.insert(0, expense["date"])
-                
-                # Button frame
-                button_frame = ttk.Frame(content_frame)
-                button_frame.pack(fill=tk.X, pady=(20, 0))
-                
-                def update_expense():
-                    try:
-                        amount = float(amount_entry.get())
-                        category = category_entry.get()
-                        description = desc_entry.get()
-                        date_str = date_entry.get()
-                        
-                        # Validate input
-                        if amount <= 0:
-                            messagebox.showerror("Error", "Amount must be positive")
-                            return
-                            
-                        if not category:
-                            messagebox.showerror("Error", "Category is required")
-                            return
-                            
-                        try:
-                            # Validate date format
-                            datetime.datetime.strptime(date_str, "%Y-%m-%d")
-                        except ValueError:
-                            messagebox.showerror("Error", "Invalid date format. Use YYYY-MM-DD")
-                            return
-                            
-                        # Update expense
-                        self.expenses[index]["amount"] = amount
-                        self.expenses[index]["category"] = category
-                        self.expenses[index]["description"] = description
-                        self.expenses[index]["date"] = date_str
-                        
-                        self.save_data()
-                        
-                        # Update UI
-                        self.load_expenses()
-                        self.update_dashboard()
-                        self.refresh_reports()
-                        
-                        self.status_var.set(f"Expense updated: ₱{amount:.2f} for {description}")
-                        dialog.destroy()
-                        
-                    except ValueError:
-                        messagebox.showerror("Error", "Please enter a valid amount")
-                
-                ttk.Button(button_frame, text="Cancel", 
-                       command=dialog.destroy).pack(side=tk.LEFT)
-                ttk.Button(button_frame, text="Update", 
-                       command=update_expense, style="Accent.TButton").pack(side=tk.RIGHT)
-                
-                # Center the dialog
-                dialog.update_idletasks()
-                width = dialog.winfo_width()
-                height = dialog.winfo_height()
-                x = (dialog.winfo_screenwidth() // 2) - (width // 2)
-                y = (dialog.winfo_screenheight() // 2) - (height // 2)
-                dialog.geometry(f'{width}x{height}+{x}+{y}')
-                break
-
-    def delete_expense(self):
-        """Delete the selected expense"""
-        selected_item = self.expense_tree.selection()
-        if not selected_item:
-            messagebox.showinfo("Info", "Please select an expense to delete")
-            return
-            
-        # Get the ID of the selected expense
-        expense_id = int(self.expense_tree.item(selected_item[0], "values")[0])
-        
-        # Ask for confirmation
-        confirm = messagebox.askyesno("Confirm Delete", 
-                                   "Are you sure you want to delete this expense?")
-        if not confirm:
-            return
-            
-        # Delete the expense
-        for index, expense in enumerate(self.expenses):
-            if expense["id"] == expense_id:
-                description = expense["description"]
-                amount = expense["amount"]
-                del self.expenses[index]
-                self.save_data()
-                
-                # Update UI
-                self.load_expenses()
-                self.update_dashboard()
-                self.refresh_reports()
-                
-                self.status_var.set(f"Expense deleted: ₱{amount:.2f} for {description}")
-                break
-
-    def search_expenses(self, event=None):
-        """Search and filter expenses"""
-        search_text = self.search_entry.get().lower()
-        if search_text == "search expenses...":
-            return
-            
-        # Clear the existing items
-        for item in self.expense_tree.get_children():
-            self.expense_tree.delete(item)
-            
-        # Add matching expenses to the tree
-        for expense in sorted(self.expenses, key=lambda x: x["date"], reverse=True):
-            # Check if any field contains the search text
-            if (search_text in str(expense["amount"]).lower() or
-                search_text in expense["category"].lower() or
-                search_text in expense["description"].lower() or
-                search_text in expense["date"].lower()):
-                
-                self.expense_tree.insert("", tk.END, values=(
-                    expense["id"],
-                    expense["date"],
-                    f"₱{expense['amount']:.2f}",
-                    expense["category"],
-                    expense["description"]
-                ))
-
-    def export_to_csv(self):
-        """Export expenses to CSV file"""
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-            title="Export Expenses"
-        )
-        
-        if not filename:
-            return
-            
-        try:
-            with open(filename, 'w', newline='') as csvfile:
-                fieldnames = ['id', 'date', 'amount', 'category', 'description']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                
-                writer.writeheader()
-                for expense in self.expenses:
-                    writer.writerow(expense)
-                    
-            self.status_var.set(f"Exported {len(self.expenses)} expenses to {os.path.basename(filename)}")
-            messagebox.showinfo("Export Successful", f"Expenses exported to {filename}")
-            
-        except Exception as e:
-            messagebox.showerror("Export Error", f"Error exporting data: {str(e)}")
-
-    def get_categories(self):
-        """Get a list of all unique categories"""
-        return sorted(set(expense["category"] for expense in self.expenses if expense["category"]))
-
-    def refresh_reports(self):
-        """Refresh the current report based on selected options"""
-        # Clear current chart
+    def refresh_reports(self, event=None):
+        """Refresh the reports based on selected options"""
+        # Clear previous chart
         for widget in self.chart_frame.winfo_children():
             widget.destroy()
             
-        # Show appropriate report based on selection
+        # Get report type
         report_type = self.report_type.get()
+        
         if report_type == "category":
             self.show_category_report()
         elif report_type == "monthly":
@@ -946,361 +956,268 @@ class ExpenseTrackerApp:
             self.show_trend_report()
 
     def show_category_report(self):
-        """Show pie chart of expenses by category"""
-        # Get date range
+        """Show category breakdown report"""
         try:
+            # Get date range
             from_date = self.from_date_entry.get()
             to_date = self.to_date_entry.get()
             
-            # Validate dates
-            datetime.datetime.strptime(from_date, "%Y-%m-%d")
-            datetime.datetime.strptime(to_date, "%Y-%m-%d")
+            # Filter expenses by date range
+            filtered_expenses = [expense for expense in self.expenses
+                            if from_date <= expense["date"] <= to_date]
             
-        except ValueError:
-            messagebox.showerror("Error", "Invalid date format. Use YYYY-MM-DD")
-            return
+            if not filtered_expenses:
+                ttk.Label(self.chart_frame, text="No data available for selected date range",
+                      font=self.normal_font).pack(expand=True)
+                return
+                
+            # Calculate category totals
+            category_totals = defaultdict(float)
+            for expense in filtered_expenses:
+                category_totals[expense["category"]] += expense["amount"]
+                
+            # Sort categories by total amount
+            sorted_categories = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)
             
-        # Filter expenses by date range
-        filtered_expenses = [exp for exp in self.expenses 
-                          if from_date <= exp["date"] <= to_date]
-        
-        if not filtered_expenses:
-            # Show message if no data
-            ttk.Label(self.chart_frame, text="No expense data for the selected date range",
-                   font=self.subheading_font).pack(expand=True)
-            return
+            # Create figure and axis
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+            fig.tight_layout(pad=3.0)
             
-        # Group by category
-        category_totals = defaultdict(float)
-        for expense in filtered_expenses:
-            category_totals[expense["category"]] += expense["amount"]
+            # Pie chart
+            labels = [f"{cat} (₱{amt:.2f})" for cat, amt in sorted_categories]
+            sizes = [amt for _, amt in sorted_categories]
             
-        # Create figure and axis
-        fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-        
-        # Plot pie chart
-        categories = list(category_totals.keys())
-        amounts = list(category_totals.values())
-        
-        # Only show top 8 categories, group the rest as "Other"
-        if len(categories) > 8:
-            sorted_indices = sorted(range(len(amounts)), key=lambda i: amounts[i], reverse=True)
-            top_categories = [categories[i] for i in sorted_indices[:7]]
-            top_amounts = [amounts[i] for i in sorted_indices[:7]]
+            # Use a colorful color map
+            cmap = plt.cm.viridis
+            colors = cmap(np.linspace(0, 1, len(labels)))
             
-            other_amount = sum(amounts[i] for i in sorted_indices[7:])
-            top_categories.append("Other")
-            top_amounts.append(other_amount)
+            wedges, texts, autotexts = ax1.pie(sizes, labels=None, autopct='%1.1f%%', 
+                                           startangle=90, colors=colors)
             
-            categories = top_categories
-            amounts = top_amounts
-        
-        # Create colorful pie chart
-        wedges, texts, autotexts = ax.pie(
-            amounts, 
-            labels=None,
-            autopct='%1.1f%%',
-            startangle=90,
-            shadow=False,
-        )
-        
-        # Equal aspect ratio ensures that pie is drawn as a circle
-        ax.axis('equal')
-        
-        # Add title
-        ax.set_title(f"Expenses by Category ({from_date} to {to_date})")
-        
-        # Add legend
-        ax.legend(wedges, [f"{cat} (₱{amt:.2f})" for cat, amt in zip(categories, amounts)],
-               loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
-        
-        # Make the percentage labels more readable
-        for autotext in autotexts:
-            autotext.set_color('white')
-            autotext.set_fontsize(9)
-        
-        # Create canvas
-        canvas = FigureCanvasTkAgg(fig, master=self.chart_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        
-        # Add total
-        total_amount = sum(amounts)
-        total_label = ttk.Label(self.chart_frame, 
-                             text=f"Total: ₱{total_amount:.2f}",
-                             font=self.subheading_font)
-        total_label.pack(pady=10)
-
-    def show_monthly_report(self):
-        """Show bar chart of expenses by month"""
-        # Get date range
-        try:
-            from_date = self.from_date_entry.get()
-            to_date = self.to_date_entry.get()
-            
-            # Validate dates
-            datetime.datetime.strptime(from_date, "%Y-%m-%d")
-            datetime.datetime.strptime(to_date, "%Y-%m-%d")
-            
-        except ValueError:
-            messagebox.showerror("Error", "Invalid date format. Use YYYY-MM-DD")
-            return
-            
-        # Filter expenses by date range
-        filtered_expenses = [exp for exp in self.expenses 
-                          if from_date <= exp["date"] <= to_date]
-        
-        if not filtered_expenses:
-            # Show message if no data
-            ttk.Label(self.chart_frame, text="No expense data for the selected date range",
-                   font=self.subheading_font).pack(expand=True)
-            return
-            
-        # Group by month
-        monthly_totals = defaultdict(float)
-        for expense in filtered_expenses:
-            month_key = expense["date"][:7]  # YYYY-MM format
-            monthly_totals[month_key] += expense["amount"]
-            
-        # Sort months
-        sorted_months = sorted(monthly_totals.keys())
-        
-        # Create figure and axis
-        fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-        
-        # Format month labels
-        month_labels = []
-        for month_key in sorted_months:
-            year, month = month_key.split('-')
-            month_name = datetime.datetime(int(year), int(month), 1).strftime('%b')
-            month_labels.append(f"{month_name} {year}")
-        
-        # Plot bar chart
-        bars = ax.bar(month_labels, [monthly_totals[m] for m in sorted_months],
-                  color=self.colors["accent"])
-        
-        # Add data labels on top of bars
-        for bar in bars:
-            height = bar.get_height()
-            ax.annotate(f"₱{height:.0f}",
-                     xy=(bar.get_x() + bar.get_width() / 2, height),
-                     xytext=(0, 3),  # 3 points vertical offset
-                     textcoords="offset points",
-                     ha='center', va='bottom',
-                     fontsize=8)
-        
-        # Add grid lines
-        ax.grid(axis='y', linestyle='--', alpha=0.7)
-        
-        # Add labels and title
-        ax.set_xlabel('Month')
-        ax.set_ylabel('Total Expenses (₱)')
-        ax.set_title(f"Monthly Expenses ({from_date} to {to_date})")
-        
-        # Rotate x-axis labels for better readability
-        plt.xticks(rotation=45, ha='right')
-        
-        # Adjust layout
-        fig.tight_layout()
-        
-        # Create canvas
-        canvas = FigureCanvasTkAgg(fig, master=self.chart_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        
-        # Add average
-        if sorted_months:
-            avg_monthly = sum(monthly_totals.values()) / len(monthly_totals)
-            avg_label = ttk.Label(self.chart_frame, 
-                               text=f"Average Monthly Expense: ₱{avg_monthly:.2f}", 
-                               font=self.subheading_font)
-            avg_label.pack(pady=10)
-
-    def show_trend_report(self):
-        """Show line chart of expense trends over time"""
-        # Get date range
-        try:
-            from_date = self.from_date_entry.get()
-            to_date = self.to_date_entry.get()
-            
-            # Validate dates
-            datetime.datetime.strptime(from_date, "%Y-%m-%d")
-            datetime.datetime.strptime(to_date, "%Y-%m-%d")
-            
-        except ValueError:
-            messagebox.showerror("Error", "Invalid date format. Use YYYY-MM-DD")
-            return
-            
-        # Filter expenses by date range
-        filtered_expenses = [exp for exp in self.expenses 
-                          if from_date <= exp["date"] <= to_date]
-        
-        if not filtered_expenses:
-            # Show message if no data
-            ttk.Label(self.chart_frame, text="No expense data for the selected date range",
-                   font=self.subheading_font).pack(expand=True)
-            return
-        
-        # Group by date
-        date_totals = defaultdict(float)
-        for expense in filtered_expenses:
-            date_totals[expense["date"]] += expense["amount"]
-            
-        # Sort dates
-        sorted_dates = sorted(date_totals.keys())
-        
-        # Create figure and axis
-        fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-        
-        # Plot line chart
-        ax.plot(sorted_dates, [date_totals[d] for d in sorted_dates], 
-             marker='o', linestyle='-', color=self.colors["accent"], linewidth=2)
-        
-        # Add grid lines
-        ax.grid(True, linestyle='--', alpha=0.7)
-        
-        # Add labels and title
-        ax.set_xlabel('Date')
-        ax.set_ylabel('Total Expenses (₱)')
-        ax.set_title(f"Expense Trends ({from_date} to {to_date})")
-        
-        # Format x-axis dates
-        if len(sorted_dates) > 10:
-            # If too many dates, show fewer ticks
-            ax.xaxis.set_major_locator(plt.MaxNLocator(10))
-        
-        # Rotate x-axis labels for better readability
-        plt.xticks(rotation=45, ha='right')
-        
-        # Add a trend line
-        if len(sorted_dates) > 1:
-            # Convert dates to numbers for linear regression
-            dates_num = range(len(sorted_dates))
-            amounts = [date_totals[d] for d in sorted_dates]
-            
-            # Simple linear regression for trend line
-            z = np.polyfit(dates_num, amounts, 1)
-            p = np.poly1d(z)
-            
-            # Add trend line
-            ax.plot(sorted_dates, p(dates_num), "r--", alpha=0.7, 
-                 label=f"Trend: {'increasing' if z[0] > 0 else 'decreasing'}")
+            # Customize pie chart
+            ax1.set_title('Expense Distribution by Category')
+            ax1.axis('equal')  # Equal aspect ratio ensures pie is circular
             
             # Add legend
-            ax.legend()
-        
-        # Adjust layout
-        fig.tight_layout()
-        
-        # Create canvas
-        canvas = FigureCanvasTkAgg(fig, master=self.chart_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        
-        # Add stats
-        if sorted_dates:
-            stats_frame = ttk.Frame(self.chart_frame)
-            stats_frame.pack(pady=10)
+            ax1.legend(wedges, labels, title="Categories", 
+                    loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
             
-            # Calculate stats
-            total = sum(date_totals.values())
-            avg_daily = total / len(date_totals)
+            # Bar chart
+            categories = [cat for cat, _ in sorted_categories]
+            amounts = [amt for _, amt in sorted_categories]
             
-            ttk.Label(stats_frame, text=f"Total: ₱{total:.2f}", 
-                   font=self.subheading_font).pack(side=tk.LEFT, padx=20)
-            ttk.Label(stats_frame, text=f"Daily Average: ₱{avg_daily:.2f}", 
-                   font=self.subheading_font).pack(side=tk.LEFT, padx=20)
-
-    def load_data(self):
-        """Load expense data from file"""
-        try:
-            if os.path.exists(self.filename):
-                with open(self.filename, "r") as f:
-                    self.expenses = json.load(f)
-            else:
-                # Create sample data for first run
-                self.create_sample_data()
+            # Create horizontal bar chart
+            bars = ax2.barh(categories, amounts, color=colors)
+            ax2.set_title('Category Expenses')
+            ax2.set_xlabel('Amount (₱)')
+            
+            # Add amount labels to bars
+            for bar in bars:
+                width = bar.get_width()
+                ax2.text(width + 0.3, bar.get_y() + bar.get_height()/2, 
+                      f'₱{width:.2f}', ha='left', va='center')
+            
+            # Create canvas to display the figure
+            canvas = FigureCanvasTkAgg(fig, master=self.chart_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            # Add a summary text below
+            total = sum(amounts)
+            summary = f"Total expenses: ₱{total:.2f} from {from_date} to {to_date}"
+            ttk.Label(self.chart_frame, text=summary, font=self.normal_font).pack(pady=10)
+            
         except Exception as e:
-            messagebox.showerror("Error", f"Error loading data: {str(e)}")
-            # Create sample data if loading fails
-            self.create_sample_data()
+            ttk.Label(self.chart_frame, text=f"Error generating report: {str(e)}",
+                  font=self.normal_font).pack(expand=True)
 
-    def save_data(self):
-        """Save expense data to file"""
+    def show_monthly_report(self):
+        """Show monthly summary report"""
         try:
-            with open(self.filename, "w") as f:
-                json.dump(self.expenses, f, indent=2)
+            # Get date range
+            from_date = self.from_date_entry.get()
+            to_date = self.to_date_entry.get()
+            
+            # Parse dates to get year and month
+            start_date = datetime.datetime.strptime(from_date, "%Y-%m-%d")
+            end_date = datetime.datetime.strptime(to_date, "%Y-%m-%d")
+            
+            # Filter expenses by date range
+            filtered_expenses = [expense for expense in self.expenses
+                            if from_date <= expense["date"] <= to_date]
+            
+            if not filtered_expenses:
+                ttk.Label(self.chart_frame, text="No data available for selected date range",
+                      font=self.normal_font).pack(expand=True)
+                return
+                
+            # Group expenses by month
+            monthly_totals = defaultdict(float)
+            for expense in filtered_expenses:
+                date = datetime.datetime.strptime(expense["date"], "%Y-%m-%d")
+                month_key = date.strftime("%Y-%m")
+                monthly_totals[month_key] += expense["amount"]
+                
+            # Sort months chronologically
+            sorted_months = sorted(monthly_totals.items())
+            
+            # Create figure and axis
+            fig, ax = plt.subplots(figsize=(10, 5))
+            
+            # Format month labels nicely (e.g., "Jan 2023")
+            month_labels = []
+            for month_key, _ in sorted_months:
+                year, month = month_key.split("-")
+                month_name = datetime.datetime(int(year), int(month), 1).strftime("%b %Y")
+                month_labels.append(month_name)
+                
+            amounts = [amt for _, amt in sorted_months]
+            
+            # Create bar chart
+            bars = ax.bar(month_labels, amounts, color='skyblue')
+            
+            # Add data labels on top of bars
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height + 5,
+                     f'₱{height:.2f}', ha='center', va='bottom')
+            
+            # Customize chart
+            ax.set_title('Monthly Expense Summary')
+            ax.set_xlabel('Month')
+            ax.set_ylabel('Total Amount (₱)')
+            plt.xticks(rotation=45)
+            fig.tight_layout()
+            
+            # Create canvas to display the figure
+            canvas = FigureCanvasTkAgg(fig, master=self.chart_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            # Add a summary text below
+            avg_monthly = sum(amounts) / len(amounts)
+            highest_month = max(sorted_months, key=lambda x: x[1])
+            highest_month_name = datetime.datetime(
+                int(highest_month[0].split("-")[0]), 
+                int(highest_month[0].split("-")[1]), 1
+            ).strftime("%B %Y")
+            
+            summary = (f"Average monthly expenses: ₱{avg_monthly:.2f}\n"
+                    f"Highest spending month: {highest_month_name} (₱{highest_month[1]:.2f})")
+            ttk.Label(self.chart_frame, text=summary, font=self.normal_font).pack(pady=10)
+            
         except Exception as e:
-            messagebox.showerror("Error", f"Error saving data: {str(e)}")
+            ttk.Label(self.chart_frame, text=f"Error generating report: {str(e)}",
+                  font=self.normal_font).pack(expand=True)
 
-    def create_sample_data(self):
-        """Create sample data for first run"""
-        today = datetime.datetime.now()
-        
-        # Create a range of dates in the past 3 months
-        dates = []
-        for i in range(90, 0, -1):
-            date = today - datetime.timedelta(days=i)
-            dates.append(date.strftime("%Y-%m-%d"))
-        
-        # Sample categories and descriptions
-        categories = ["Groceries", "Utilities", "Transportation", "Dining", "Entertainment", "Shopping"]
-        
-        grocery_desc = ["Supermarket", "Farmer's market", "Whole Foods", "Walmart", "Target"]
-        utilities_desc = ["Electricity bill", "Water bill", "Internet", "Phone bill", "Gas bill"]
-        transport_desc = ["Gas", "Bus fare", "Uber", "Taxi", "Car maintenance"]
-        dining_desc = ["Restaurant", "Fast food", "Coffee shop", "Food delivery"]
-        entertainment_desc = ["Movies", "Concert tickets", "Streaming subscription", "Games"]
-        shopping_desc = ["Clothing", "Electronics", "Home decor", "Books", "Personal care"]
-        
-        category_descs = {
-            "Groceries": grocery_desc,
-            "Utilities": utilities_desc,
-            "Transportation": transport_desc,
-            "Dining": dining_desc,
-            "Entertainment": entertainment_desc,
-            "Shopping": shopping_desc
-        }
-        
-        # Create random expenses
-        sample_expenses = []
-        expense_id = 1
-        
-        for date in dates:
-            # Create 0-3 expenses per day randomly
-            num_expenses = random.randint(0, 3)
-            for _ in range(num_expenses):
-                category = random.choice(categories)
-                description = random.choice(category_descs[category])
+    def show_trend_report(self):
+        """Show expense trend analysis"""
+        try:
+            # Get date range
+            from_date = self.from_date_entry.get()
+            to_date = self.to_date_entry.get()
+            
+            # Filter expenses by date range
+            filtered_expenses = [expense for expense in self.expenses
+                            if from_date <= expense["date"] <= to_date]
+            
+            if not filtered_expenses:
+                ttk.Label(self.chart_frame, text="No data available for selected date range",
+                      font=self.normal_font).pack(expand=True)
+                return
                 
-                # Generate realistic amount based on category
-                amount_ranges = {
-                    "Groceries": (20, 120),
-                    "Utilities": (30, 200),
-                    "Transportation": (5, 50),
-                    "Dining": (10, 80),
-                    "Entertainment": (15, 70),
-                    "Shopping": (20, 150)
-                }
+            # Sort expenses by date
+            sorted_expenses = sorted(filtered_expenses, key=lambda x: x["date"])
+            
+            # Extract dates and cumulative amounts
+            dates = []
+            amounts = []
+            cumulative = 0
+            
+            for expense in sorted_expenses:
+                dates.append(datetime.datetime.strptime(expense["date"], "%Y-%m-%d"))
+                cumulative += expense["amount"]
+                amounts.append(cumulative)
                 
-                amount = round(random.uniform(*amount_ranges[category]), 2)
+            # Create figure and axes
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), gridspec_kw={'height_ratios': [2, 1]})
+            fig.tight_layout(pad=3.0)
+            
+            # Cumulative spending over time
+            ax1.plot(dates, amounts, marker='o', linestyle='-', color='blue', 
+                  linewidth=2, markersize=4)
+            ax1.set_title('Cumulative Spending Over Time')
+            ax1.set_xlabel('Date')
+            ax1.set_ylabel('Cumulative Amount (₱)')
+            ax1.grid(True, linestyle='--', alpha=0.7)
+            
+            # Format dates nicely
+            fig.autofmt_xdate()
+            
+            # Individual expense amounts
+            individual_amounts = [expense["amount"] for expense in sorted_expenses]
+            ax2.bar(dates, individual_amounts, color='green', alpha=0.7)
+            ax2.set_title('Individual Expense Amounts')
+            ax2.set_xlabel('Date')
+            ax2.set_ylabel('Amount (₱)')
+            ax2.grid(True, linestyle='--', alpha=0.7)
+            
+            # Create canvas to display the figure
+            canvas = FigureCanvasTkAgg(fig, master=self.chart_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            # Calculate statistics for summary
+            total_spent = amounts[-1]
+            avg_expense = total_spent / len(sorted_expenses)
+            daily_avg = total_spent / ((dates[-1] - dates[0]).days + 1)
+            
+            # Add a summary text below
+            summary = (f"Total spent: ₱{total_spent:.2f}\n"
+                    f"Average expense: ₱{avg_expense:.2f}\n"
+                    f"Daily average: ₱{daily_avg:.2f}")
+            ttk.Label(self.chart_frame, text=summary, font=self.normal_font).pack(pady=10)
+            
+        except Exception as e:
+            ttk.Label(self.chart_frame, text=f"Error generating report: {str(e)}",
+                  font=self.normal_font).pack(expand=True)
+    
+    def export_to_csv(self):
+        """Export expenses to CSV file"""
+        try:
+            # Ask for file location
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+                title="Export Expenses to CSV"
+            )
+            
+            if not filename:  # User cancelled
+                return
                 
-                expense = {
-                    "id": expense_id,
-                    "date": date,
-                    "amount": amount,
-                    "category": category,
-                    "description": description
-                }
+            # Write to CSV
+            with open(filename, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                # Write header
+                writer.writerow(['ID', 'Date', 'Amount', 'Category', 'Description'])
                 
-                sample_expenses.append(expense)
-                expense_id += 1
-        
-        self.expenses = sample_expenses
-        self.save_data()
+                # Write data
+                for expense in sorted(self.expenses, key=lambda x: x["date"], reverse=True):
+                    writer.writerow([
+                        expense["id"],
+                        expense["date"],
+                        expense["amount"],
+                        expense["category"],
+                        expense["description"]
+                    ])
+                    
+            messagebox.showinfo("Export Successful", f"Expenses exported to {filename}")
+            self.status_var.set(f"Exported {len(self.expenses)} expenses to CSV")
+            
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
 
 def main():
-    # Create the main window
     root = tk.Tk()
     app = ExpenseTrackerApp(root)
     root.mainloop()
